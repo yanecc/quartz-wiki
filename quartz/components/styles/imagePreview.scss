@@ -26,6 +26,12 @@
   max-height: none;
   cursor: grab;
   transform-origin: center;
+  // 添加触摸优化
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 
   &:active {
     cursor: grabbing;
@@ -218,6 +224,18 @@
 
   .image-preview-zoom {
     width: 96%;
+    // 增加移动端滑块的触摸区域
+    height: 6px;
+    
+    &::-webkit-slider-thumb {
+      width: 22px;
+      height: 22px;
+    }
+    
+    &::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+    }
   }
 
   .control-buttons {
@@ -229,11 +247,20 @@
   .control-btn {
     width: 32px;
     height: 32px;
+    // 增加移动端按钮的触摸区域
+    min-height: 44px;
+    min-width: 44px;
 
     .icon {
       width: 25px;
       height: 25px;
     }
+  }
+  
+  // 移动端图片预览优化
+  .image-preview-img {
+    // 确保在移动端触摸操作流畅
+    will-change: transform;
   }
 }
 

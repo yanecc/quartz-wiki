@@ -41,7 +41,7 @@ let controlsContainer: HTMLElement | null = null
 let scaleSlider: HTMLInputElement | null = null
 let scalePercentage: HTMLElement | null = null
 let percentageTimeout: NodeJS.Timeout | null = null
-let savedScrollPosition: number = 0 // 添加保存滚动位置的变量
+let savedScrollPosition: number = 0 // 保存滚动位置
 
 const createPreviewHTML = (): string => {
   return `
@@ -169,8 +169,11 @@ const openPreview = (img: HTMLImageElement): void => {
   // 绑定事件
   bindEvents()
 
-  // 显示预览
+  // 禁止页面滚动并显示预览
   document.body.style.overflow = 'hidden'
+  document.body.style.position = 'fixed'
+  document.body.style.top = `-${savedScrollPosition}px`
+  document.body.style.width = '100%'
   previewContainer.style.display = 'flex'
 }
 
@@ -179,7 +182,12 @@ const closePreview = (): void => {
 
   state.isActive = false
   state.isFullscreen = false
+
+  // 恢复页面滚动
   document.body.style.overflow = ''
+  document.body.style.position = ''
+  document.body.style.top = ''
+  document.body.style.width = ''
 
   // 移除事件监听
   unbindEvents()
@@ -188,9 +196,10 @@ const closePreview = (): void => {
   previewContainer.remove()
 
   // 恢复滚动位置
-  setTimeout(() => {
-    window.scrollTo(0, savedScrollPosition)
-  }, 0)
+  window.scrollTo({
+    top: savedScrollPosition,
+    behavior: 'instant' // 使用instant避免动画
+  })
 
   // 清理引用
   previewContainer = null
@@ -218,12 +227,12 @@ const toggleFullscreen = (): void => {
 
   if (state.isFullscreen) {
     previewContainer.requestFullscreen?.() ||
-      (previewContainer as any).webkitRequestFullscreen?.() ||
-      (previewContainer as any).msRequestFullscreen?.()
+    (previewContainer as any).webkitRequestFullscreen?.() ||
+    (previewContainer as any).msRequestFullscreen?.()
   } else {
     document.exitFullscreen?.() ||
-      (document as any).webkitExitFullscreen?.() ||
-      (document as any).msExitFullscreen?.()
+    (document as any).webkitExitFullscreen?.() ||
+    (document as any).msExitFullscreen?.()
   }
 
   // 重置位置和缩放
@@ -264,6 +273,45 @@ const handleMouseUp = (): void => {
 
   state.isDragging = false
   previewImage.style.cursor = 'grab'
+}
+
+// 新增：触摸事件处理函数
+const handleTouchStart = (e: TouchEvent): void => {
+  if (!previewImage || e.target !== previewImage) return
+  if (e.touches.length !== 1) return
+
+  // 阻止默认行为，防止页面滚动
+  e.preventDefault()
+
+  const touch = e.touches[0]
+  state.isDragging = true
+  state.dragStartX = touch.clientX
+  state.dragStartY = touch.clientY
+  state.initialTranslateX = state.translateX
+  state.initialTranslateY = state.translateY
+}
+
+const handleTouchMove = (e: TouchEvent): void => {
+  if (!state.isDragging || !previewImage) return
+  if (e.touches.length !== 1) return
+
+  // 阻止默认行为，防止页面滚动
+  e.preventDefault()
+
+  const touch = e.touches[0]
+  const deltaX = touch.clientX - state.dragStartX
+  const deltaY = touch.clientY - state.dragStartY
+
+  state.translateX = state.initialTranslateX + deltaX
+  state.translateY = state.initialTranslateY + deltaY
+
+  updateImageTransform()
+}
+
+const handleTouchEnd = (e: TouchEvent): void => {
+  if (!state.isDragging || !previewImage) return
+
+  state.isDragging = false
 }
 
 const handleDoubleClick = (e: MouseEvent): void => {
@@ -353,11 +401,17 @@ const bindEvents = (): void => {
     }
   })
 
-  // 拖拽事件
+  // 鼠标拖拽事件
   previewImage?.addEventListener('mousedown', handleMouseDown)
   previewImage?.addEventListener('dblclick', handleDoubleClick)
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
+
+  // 新增：触摸拖拽事件
+  previewImage?.addEventListener('touchstart', handleTouchStart, { passive: false })
+  document.addEventListener('touchmove', handleTouchMove, { passive: false })
+  document.addEventListener('touchend', handleTouchEnd)
+  document.addEventListener('touchcancel', handleTouchEnd)
 
   // 键盘事件
   document.addEventListener('keydown', handleKeyDown)
@@ -378,6 +432,11 @@ const bindEvents = (): void => {
 const unbindEvents = (): void => {
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
+  // 解绑触摸事件
+  document.removeEventListener('touchmove', handleTouchMove)
+  document.removeEventListener('touchend', handleTouchEnd)
+  document.removeEventListener('touchcancel', handleTouchEnd)
+
   document.removeEventListener('keydown', handleKeyDown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
