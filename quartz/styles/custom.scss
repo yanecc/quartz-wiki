@@ -1,3 +1,109 @@
 @use "./base.scss";
 
 // put your custom CSS here!
+
+/* Ensure markdown lists render with visible markers, proper indent, and spacing */
+.page article {
+  /* Base styles for ordered and unordered lists */
+  ol,
+  ul {
+    /* show bullets/numbers and align wrapped lines nicely */
+    list-style-position: outside;
+    margin-block: 0.5rem 0.8rem;        /* vertical spacing above/below the list */
+    padding-left: 1.5rem; /* left indent so wrapped lines align with text */
+  }
+
+  /* Explicitly set list markers */
+  ol {
+    list-style-type: decimal;
+  }
+  ul {
+    list-style-type: disc;
+  }
+
+  /* Nested lists get different markers */
+  ol ol {
+    list-style-type: lower-alpha;
+  }
+  ol ul {
+    list-style-type: square;
+  }
+  ul ul {
+    list-style-type: circle;
+  }
+
+  li em {
+    color: darkgreen;
+  }
+
+  /* Spacing between list items for better readability */
+  li + li {
+    margin-top: 0.3rem;
+  }
+
+  /* Avoid accidental extra indent from any resets */
+  li {
+    padding-left: 0;
+  }
+
+  /* Keep task list items (with checkboxes) marker-less but aligned */
+  li:has(> input[type="checkbox"]) {
+    list-style: none;
+    padding-inline-start: 0.2rem;
+  }
+
+  /* Restore a bit of spacing for paragraphs inside list items */
+  li > p {
+    margin: 0.2rem 0;
+  }
+
+  img {
+    max-width: 80%;
+  }
+
+  img[alt*="right"] {
+    float: right;
+    clear: right;
+    margin-left: 1rem;
+    margin-top: 1rem;
+  }
+
+  img[alt*="center"] {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  pink {
+    color: deeppink;
+    position: relative;
+    cursor: pointer;
+  }
+
+  pink:hover::after {
+    content: "技能树预览功能";
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: lightyellow;
+    color: black;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1;
+  }
+
+  pink[tooltip]:hover::after {
+    content: attr(tooltip);
+  }
+
+}
+/* Optional: make markers slightly clearer
+.page article li::marker {
+  color: var(--darkgray);
+}
+*/
