@@ -9,7 +9,7 @@ tags:
 
 [概述](./index.md) | [人物介绍](./character.md) | [专有物品](./inventory.md) | [玩法心得](./tips.md) | [Bug 修复](./patches.md) | [更新日志](./changelog.md)
 
-![[./images/overview.png]]
+![[./images/overview.png|400]]
 
 ## 🏆️ 升级机制
 

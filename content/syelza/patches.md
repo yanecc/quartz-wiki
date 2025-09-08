@@ -10,7 +10,7 @@ tags:
 
 [概述](./index.md) | [人物介绍](./character.md) | [专有物品](./inventory.md) | [玩法心得](./tips.md) | [Bug 修复](./patches.md) | [更新日志](./changelog.md)
 
-![[./images/painting.jpg]]
+![[./images/painting.jpg|300]]
 
 ## 📬️ 重大优化与兼容
 
