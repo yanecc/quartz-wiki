@@ -10,6 +10,9 @@
   align-items: center;
   z-index: 9999;
   user-select: none;
+  // 优化指针事件
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .image-preview-container {
@@ -26,12 +29,21 @@
   max-height: none;
   cursor: grab;
   transform-origin: center;
-  // 添加触摸优化
+  // 统一的指针事件处理
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+  pointer-events: auto;
+  // 性能优化
+  will-change: transform;
+  // 防止拖拽时的图片选中
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  // 移除高亮
+  -webkit-tap-highlight-color: transparent;
+  // 防止长按菜单
+  -webkit-touch-callout: none;
 
   &:active {
     cursor: grabbing;
@@ -48,6 +60,13 @@
   align-items: center;
   gap: 10px;
   z-index: 10000;
+  // 防止控制栏干扰图片的指针事件
+  pointer-events: none;
+
+  // 子元素启用指针事件
+  > * {
+    pointer-events: auto;
+  }
 }
 
 .scale-container {
@@ -75,6 +94,7 @@
   font-weight: 500;
   display: none;
   white-space: nowrap;
+  pointer-events: none; // 防止干扰交互
 
   &::after {
     content: '';
@@ -89,13 +109,15 @@
 
 .image-preview-zoom {
   appearance: none;
-  width: 96%; // 96%以适应scale-container宽度
+  width: 96%;
   height: 4px;
   border-radius: 2px;
   background: linear-gradient(90deg, #4caf50 0%, #ffc107 50%, #f44336 100%);
   outline: none;
   margin: 0 8px;
   cursor: pointer;
+  // 优化触摸交互
+  touch-action: manipulation;
 
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -158,6 +180,10 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  // 优化按钮交互
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 
   &:hover {
     background: rgba(255, 255, 255, 0.2);
@@ -210,7 +236,7 @@
   }
 }
 
-// 响应式设计
+// 响应式设计 - 移动端优化
 @media (max-width: 768px) {
   .image-preview-controls {
     bottom: 20px;
@@ -224,17 +250,43 @@
 
   .image-preview-zoom {
     width: 96%;
-    // 增加移动端滑块的触摸区域
-    height: 6px;
-    
+    height: 8px; // 增加触摸区域
+
     &::-webkit-slider-thumb {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
+      // 确保符合触摸目标最小尺寸
+      min-width: 44px;
+      min-height: 44px;
+      position: relative;
+
+      // 扩大可点击区域
+      &::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 44px;
+        height: 44px;
+      }
     }
-    
+
     &::-moz-range-thumb {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
+      position: relative;
+
+      // 扩大可点击区域
+      &::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 44px;
+        height: 44px;
+      }
     }
   }
 
@@ -247,20 +299,28 @@
   .control-btn {
     width: 32px;
     height: 32px;
-    // 增加移动端按钮的触摸区域
-    min-height: 44px;
+    // 满足最小触摸目标尺寸
     min-width: 44px;
+    min-height: 44px;
+    position: relative;
 
     .icon {
       width: 25px;
       height: 25px;
+      pointer-events: none;
     }
   }
-  
-  // 移动端图片预览优化
-  .image-preview-img {
-    // 确保在移动端触摸操作流畅
-    will-change: transform;
+}
+
+// 小屏幕设备优化
+@media (max-width: 480px) {
+  .image-preview-controls {
+    bottom: 15px;
+  }
+
+  .scale-container,
+  .control-buttons {
+    width: min(180px, calc(100vw - 40px));
   }
 }
 
@@ -271,11 +331,11 @@
   }
 
   .scale-container {
-    background: rgba(20, 20, 20, 0.8);
+    background: rgba(20, 20, 20, 0.85);
   }
 
   .control-buttons {
-    background: rgba(20, 20, 20, 0.8);
+    background: rgba(20, 20, 20, 0.85);
   }
 
   .control-btn {
@@ -332,5 +392,29 @@
       background: #fff;
       border: 2px solid #333;
     }
+  }
+}
+
+// 高对比度模式支持
+@media (prefers-contrast: high) {
+  .image-preview-overlay {
+    background-color: rgba(0, 0, 0, 0.98);
+  }
+
+  .control-btn {
+    border-width: 2px;
+  }
+
+  .scale-percentage {
+    font-weight: 600;
+  }
+}
+
+// 减少动画偏好
+@media (prefers-reduced-motion: reduce) {
+  .control-btn,
+  .image-preview-zoom::-webkit-slider-thumb,
+  .image-preview-zoom::-moz-range-thumb {
+    transition: none;
   }
 }

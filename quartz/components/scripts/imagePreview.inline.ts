@@ -10,6 +10,12 @@ interface ImagePreviewState {
   dragStartY: number
   initialTranslateX: number
   initialTranslateY: number
+  // 新增：用于跟踪活动指针
+  activePointerId: number | null
+  // 新增：用于双击检测
+  lastTapTime: number
+  lastTapX: number
+  lastTapY: number
 }
 
 const state: ImagePreviewState = {
@@ -23,8 +29,16 @@ const state: ImagePreviewState = {
   dragStartX: 0,
   dragStartY: 0,
   initialTranslateX: 0,
-  initialTranslateY: 0
+  initialTranslateY: 0,
+  activePointerId: null,
+  lastTapTime: 0,
+  lastTapX: 0,
+  lastTapY: 0
 }
+
+// 双击检测配置
+const DOUBLE_TAP_DELAY = 400 // 毫秒
+const DOUBLE_TAP_TOLERANCE = 12 // 像素
 
 // SVG图标定义
 const SVG_ICONS = {
@@ -41,7 +55,7 @@ let controlsContainer: HTMLElement | null = null
 let scaleSlider: HTMLInputElement | null = null
 let scalePercentage: HTMLElement | null = null
 let percentageTimeout: NodeJS.Timeout | null = null
-let savedScrollPosition: number = 0 // 保存滚动位置
+let savedScrollPosition: number = 0
 
 const createPreviewHTML = (): string => {
   return `
@@ -118,22 +132,134 @@ const updateScaleSlider = (): void => {
     percentage.textContent = `${scalePercent}%`
     percentage.style.display = 'block'
 
-    // 清除之前的定时器
     if (percentageTimeout) {
       clearTimeout(percentageTimeout)
     }
 
-    // 延长显示时间到3秒
     percentageTimeout = setTimeout(() => {
       percentage.style.display = 'none'
     }, 3000)
   }
 }
 
+// 检测双击（包括双击触摸）
+const isDoubleTap = (x: number, y: number): boolean => {
+  const currentTime = Date.now()
+  const timeDiff = currentTime - state.lastTapTime
+  const distanceX = Math.abs(x - state.lastTapX)
+  const distanceY = Math.abs(y - state.lastTapY)
+
+  state.lastTapTime = currentTime
+  state.lastTapX = x
+  state.lastTapY = y
+
+  return timeDiff < DOUBLE_TAP_DELAY &&
+         distanceX < DOUBLE_TAP_TOLERANCE &&
+         distanceY < DOUBLE_TAP_TOLERANCE
+}
+
+// 使用 Pointer Events 处理拖拽开始
+const handlePointerDown = (e: PointerEvent): void => {
+  if (!previewImage || e.target !== previewImage) return
+
+  // 如果已经有活动的指针，忽略新的指针（防止多点触控）
+  if (state.activePointerId !== null && state.activePointerId !== e.pointerId) return
+
+  // 阻止默认行为
+  e.preventDefault()
+
+  // 设置指针捕获
+  previewImage.setPointerCapture(e.pointerId)
+
+  // 检测双击
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+    if (isDoubleTap(e.clientX, e.clientY)) {
+      resetToInitialScale()
+      return
+    }
+  }
+
+  state.activePointerId = e.pointerId
+  state.isDragging = true
+  state.dragStartX = e.clientX
+  state.dragStartY = e.clientY
+  state.initialTranslateX = state.translateX
+  state.initialTranslateY = state.translateY
+
+  previewImage.style.cursor = 'grabbing'
+}
+
+// 使用 Pointer Events 处理拖拽移动
+const handlePointerMove = (e: PointerEvent): void => {
+  if (!state.isDragging || !previewImage) return
+  if (state.activePointerId !== e.pointerId) return
+
+  e.preventDefault()
+
+  const deltaX = e.clientX - state.dragStartX
+  const deltaY = e.clientY - state.dragStartY
+
+  state.translateX = state.initialTranslateX + deltaX
+  state.translateY = state.initialTranslateY + deltaY
+
+  updateImageTransform()
+}
+
+// 使用 Pointer Events 处理拖拽结束
+const handlePointerUp = (e: PointerEvent): void => {
+  if (!state.isDragging || !previewImage) return
+  if (state.activePointerId !== e.pointerId) return
+
+  // 释放指针捕获
+  previewImage.releasePointerCapture(e.pointerId)
+
+  state.isDragging = false
+  state.activePointerId = null
+  previewImage.style.cursor = 'grab'
+}
+
+// 处理指针取消事件
+const handlePointerCancel = (e: PointerEvent): void => {
+  if (!previewImage) return
+  if (state.activePointerId !== e.pointerId) return
+
+  // 释放指针捕获
+  try {
+    previewImage.releasePointerCapture(e.pointerId)
+  } catch (error) {
+    // 忽略释放捕获时的错误
+  }
+
+  state.isDragging = false
+  state.activePointerId = null
+  if (previewImage) {
+    previewImage.style.cursor = 'grab'
+  }
+}
+
+// 处理鼠标双击（仅针对鼠标设备）
+const handleDoubleClick = (e: MouseEvent): void => {
+  if (!previewImage || e.target !== previewImage) return
+  resetToInitialScale()
+}
+
+// 处理鼠标滚轮缩放
+const handleWheel = (e: WheelEvent): void => {
+  if (!previewImage || e.target !== previewImage) return
+
+  e.preventDefault()
+
+  const delta = e.deltaY < 0 ? 1.1 : 0.9
+  const newScale = Math.min(Math.max(state.scale * delta, 0.1), 3)
+
+  state.scale = newScale
+  updateImageTransform()
+  updateScaleSlider()
+}
+
 const openPreview = (img: HTMLImageElement): void => {
   if (state.isActive) return
 
-  // 保存当前滚动位置
   savedScrollPosition = window.pageYOffset || document.documentElement.scrollTop
 
   currentImage = img
@@ -141,12 +267,14 @@ const openPreview = (img: HTMLImageElement): void => {
   state.rotation = 0
   state.translateX = 0
   state.translateY = 0
+  state.activePointerId = null
+  state.lastTapTime = 0
+  state.lastTapX = 0
+  state.lastTapY = 0
 
-  // 创建预览容器
   const previewHTML = createPreviewHTML()
   document.body.insertAdjacentHTML('beforeend', previewHTML)
 
-  // 获取元素引用
   previewContainer = document.querySelector('.image-preview-overlay')
   previewImage = document.querySelector('.image-preview-img') as HTMLImageElement
   controlsContainer = document.querySelector('.image-preview-controls')
@@ -155,26 +283,22 @@ const openPreview = (img: HTMLImageElement): void => {
 
   if (!previewContainer || !previewImage) return
 
-  // 设置图片源
   previewImage.src = img.src
   previewImage.alt = img.alt
 
-  // 等待图片加载完成后设置初始缩放
   previewImage.onload = () => {
     state.scale = calculateFitScale()
     updateImageTransform()
     updateScaleSlider()
+    previewContainer!.style.display = 'flex'
   }
 
-  // 绑定事件
   bindEvents()
 
-  // 禁止页面滚动并显示预览
   document.body.style.overflow = 'hidden'
   document.body.style.position = 'fixed'
   document.body.style.top = `-${savedScrollPosition}px`
   document.body.style.width = '100%'
-  previewContainer.style.display = 'flex'
 }
 
 const closePreview = (): void => {
@@ -183,25 +307,19 @@ const closePreview = (): void => {
   state.isActive = false
   state.isFullscreen = false
 
-  // 恢复页面滚动
   document.body.style.overflow = ''
   document.body.style.position = ''
   document.body.style.top = ''
   document.body.style.width = ''
 
-  // 移除事件监听
   unbindEvents()
-
-  // 移除预览容器
   previewContainer.remove()
 
-  // 恢复滚动位置
   window.scrollTo({
     top: savedScrollPosition,
-    behavior: 'instant' // 使用instant避免动画
+    behavior: 'instant'
   })
 
-  // 清理引用
   previewContainer = null
   previewImage = null
   controlsContainer = null
@@ -235,88 +353,11 @@ const toggleFullscreen = (): void => {
     (document as any).msExitFullscreen?.()
   }
 
-  // 重置位置和缩放
   setTimeout(() => {
     state.scale = calculateFitScale()
     resetPosition()
     updateScaleSlider()
   }, 100)
-}
-
-const handleMouseDown = (e: MouseEvent): void => {
-  if (!previewImage || e.target !== previewImage) return
-
-  state.isDragging = true
-  state.dragStartX = e.clientX
-  state.dragStartY = e.clientY
-  state.initialTranslateX = state.translateX
-  state.initialTranslateY = state.translateY
-
-  previewImage.style.cursor = 'grabbing'
-  e.preventDefault()
-}
-
-const handleMouseMove = (e: MouseEvent): void => {
-  if (!state.isDragging || !previewImage) return
-
-  const deltaX = e.clientX - state.dragStartX
-  const deltaY = e.clientY - state.dragStartY
-
-  state.translateX = state.initialTranslateX + deltaX
-  state.translateY = state.initialTranslateY + deltaY
-
-  updateImageTransform()
-}
-
-const handleMouseUp = (): void => {
-  if (!state.isDragging || !previewImage) return
-
-  state.isDragging = false
-  previewImage.style.cursor = 'grab'
-}
-
-// 新增：触摸事件处理函数
-const handleTouchStart = (e: TouchEvent): void => {
-  if (!previewImage || e.target !== previewImage) return
-  if (e.touches.length !== 1) return
-
-  // 阻止默认行为，防止页面滚动
-  e.preventDefault()
-
-  const touch = e.touches[0]
-  state.isDragging = true
-  state.dragStartX = touch.clientX
-  state.dragStartY = touch.clientY
-  state.initialTranslateX = state.translateX
-  state.initialTranslateY = state.translateY
-}
-
-const handleTouchMove = (e: TouchEvent): void => {
-  if (!state.isDragging || !previewImage) return
-  if (e.touches.length !== 1) return
-
-  // 阻止默认行为，防止页面滚动
-  e.preventDefault()
-
-  const touch = e.touches[0]
-  const deltaX = touch.clientX - state.dragStartX
-  const deltaY = touch.clientY - state.dragStartY
-
-  state.translateX = state.initialTranslateX + deltaX
-  state.translateY = state.initialTranslateY + deltaY
-
-  updateImageTransform()
-}
-
-const handleTouchEnd = (e: TouchEvent): void => {
-  if (!state.isDragging || !previewImage) return
-
-  state.isDragging = false
-}
-
-const handleDoubleClick = (e: MouseEvent): void => {
-  if (!previewImage || e.target !== previewImage) return
-  resetToInitialScale()
 }
 
 const handleScaleChange = (e: Event): void => {
@@ -344,6 +385,18 @@ const handleKeyDown = (e: KeyboardEvent): void => {
     case 'F':
       toggleFullscreen()
       break
+    case '+':
+    case '=':
+      state.scale = Math.min(state.scale * 1.1, 3)
+      updateImageTransform()
+      updateScaleSlider()
+      break
+    case '-':
+    case '_':
+      state.scale = Math.max(state.scale * 0.9, 0.1)
+      updateImageTransform()
+      updateScaleSlider()
+      break
   }
 }
 
@@ -355,7 +408,6 @@ const handleFullscreenChange = (): void => {
   if (state.isFullscreen !== isCurrentlyFullscreen) {
     state.isFullscreen = isCurrentlyFullscreen
 
-    // 重置位置和缩放
     setTimeout(() => {
       state.scale = calculateFitScale()
       resetPosition()
@@ -381,7 +433,6 @@ const bindEvents = (): void => {
   // 缩放滑块事件
   scaleSlider?.addEventListener('input', handleScaleChange)
 
-  // 鼠标悬停在滑块上时显示百分比
   scaleSlider?.addEventListener('mouseenter', () => {
     const percentage = document.querySelector('.scale-percentage') as HTMLElement
     if (percentage) {
@@ -401,17 +452,17 @@ const bindEvents = (): void => {
     }
   })
 
-  // 鼠标拖拽事件
-  previewImage?.addEventListener('mousedown', handleMouseDown)
-  previewImage?.addEventListener('dblclick', handleDoubleClick)
-  document.addEventListener('mousemove', handleMouseMove)
-  document.addEventListener('mouseup', handleMouseUp)
+  // 使用 Pointer Events 统一处理拖拽
+  previewImage?.addEventListener('pointerdown', handlePointerDown)
+  previewImage?.addEventListener('pointermove', handlePointerMove)
+  previewImage?.addEventListener('pointerup', handlePointerUp)
+  previewImage?.addEventListener('pointercancel', handlePointerCancel)
 
-  // 新增：触摸拖拽事件
-  previewImage?.addEventListener('touchstart', handleTouchStart, { passive: false })
-  document.addEventListener('touchmove', handleTouchMove, { passive: false })
-  document.addEventListener('touchend', handleTouchEnd)
-  document.addEventListener('touchcancel', handleTouchEnd)
+  // 仅为鼠标设备保留双击事件
+  previewImage?.addEventListener('dblclick', handleDoubleClick)
+
+  // 添加滚轮缩放支持
+  previewImage?.addEventListener('wheel', handleWheel, { passive: false })
 
   // 键盘事件
   document.addEventListener('keydown', handleKeyDown)
@@ -430,12 +481,15 @@ const bindEvents = (): void => {
 }
 
 const unbindEvents = (): void => {
-  document.removeEventListener('mousemove', handleMouseMove)
-  document.removeEventListener('mouseup', handleMouseUp)
-  // 解绑触摸事件
-  document.removeEventListener('touchmove', handleTouchMove)
-  document.removeEventListener('touchend', handleTouchEnd)
-  document.removeEventListener('touchcancel', handleTouchEnd)
+  // 移除 Pointer Events
+  if (previewImage) {
+    previewImage.removeEventListener('pointerdown', handlePointerDown)
+    previewImage.removeEventListener('pointermove', handlePointerMove)
+    previewImage.removeEventListener('pointerup', handlePointerUp)
+    previewImage.removeEventListener('pointercancel', handlePointerCancel)
+    previewImage.removeEventListener('dblclick', handleDoubleClick)
+    previewImage.removeEventListener('wheel', handleWheel)
+  }
 
   document.removeEventListener('keydown', handleKeyDown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
@@ -445,7 +499,6 @@ const unbindEvents = (): void => {
 
 // 初始化
 document.addEventListener('nav', () => {
-  // 为所有图片添加点击事件
   const images = document.querySelectorAll('img')
 
   images.forEach(img => {
