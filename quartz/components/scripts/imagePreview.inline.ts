@@ -38,7 +38,12 @@ const state: ImagePreviewState = {
 
 // 双击检测配置
 const DOUBLE_TAP_DELAY = 400 // 毫秒
-const DOUBLE_TAP_TOLERANCE = 12 // 像素
+const DOUBLE_TAP_TOLERANCE = 20 // 像素
+const getDistance = (x1: number, y1: number, x2: number, y2: number) => {
+  const dx = x1 - x2
+  const dy = y1 - y2
+  return Math.hypot(dx, dy)
+}
 
 // SVG图标定义
 const SVG_ICONS = {
@@ -146,16 +151,14 @@ const updateScaleSlider = (): void => {
 const isDoubleTap = (x: number, y: number): boolean => {
   const currentTime = Date.now()
   const timeDiff = currentTime - state.lastTapTime
-  const distanceX = Math.abs(x - state.lastTapX)
-  const distanceY = Math.abs(y - state.lastTapY)
+  const distance = getDistance(x, y, state.lastTapX, state.lastTapY)
 
   state.lastTapTime = currentTime
   state.lastTapX = x
   state.lastTapY = y
 
   return timeDiff < DOUBLE_TAP_DELAY &&
-         distanceX < DOUBLE_TAP_TOLERANCE &&
-         distanceY < DOUBLE_TAP_TOLERANCE
+    distance < DOUBLE_TAP_TOLERANCE
 }
 
 // 使用 Pointer Events 处理拖拽开始
@@ -224,17 +227,11 @@ const handlePointerCancel = (e: PointerEvent): void => {
   if (state.activePointerId !== e.pointerId) return
 
   // 释放指针捕获
-  try {
-    previewImage.releasePointerCapture(e.pointerId)
-  } catch (error) {
-    // 忽略释放捕获时的错误
-  }
+  previewImage.releasePointerCapture(e.pointerId)
 
   state.isDragging = false
   state.activePointerId = null
-  if (previewImage) {
-    previewImage.style.cursor = 'grab'
-  }
+  previewImage.style.cursor = 'grab'
 }
 
 // 处理鼠标双击（仅针对鼠标设备）
@@ -345,12 +342,12 @@ const toggleFullscreen = (): void => {
 
   if (state.isFullscreen) {
     previewContainer.requestFullscreen?.() ||
-    (previewContainer as any).webkitRequestFullscreen?.() ||
-    (previewContainer as any).msRequestFullscreen?.()
+      (previewContainer as any).webkitRequestFullscreen?.() ||
+      (previewContainer as any).msRequestFullscreen?.()
   } else {
     document.exitFullscreen?.() ||
-    (document as any).webkitExitFullscreen?.() ||
-    (document as any).msExitFullscreen?.()
+      (document as any).webkitExitFullscreen?.() ||
+      (document as any).msExitFullscreen?.()
   }
 
   setTimeout(() => {
@@ -452,32 +449,29 @@ const bindEvents = (): void => {
     }
   })
 
-  // 使用 Pointer Events 统一处理拖拽
-  previewImage?.addEventListener('pointerdown', handlePointerDown)
-  previewImage?.addEventListener('pointermove', handlePointerMove)
-  previewImage?.addEventListener('pointerup', handlePointerUp)
-  previewImage?.addEventListener('pointercancel', handlePointerCancel)
+  // 禁用默认触摸手势（防滚动/缩放），保证拖拽跟手
+  if (previewImage) {
+    previewImage.style.touchAction = 'none'
+    // 使用 Pointer Events 统一处理拖拽
+    previewImage.addEventListener('pointerdown', handlePointerDown)
+    previewImage.addEventListener('pointermove', handlePointerMove)
+    previewImage.addEventListener('pointerup', handlePointerUp)
+    previewImage.addEventListener('pointercancel', handlePointerCancel)
 
-  // 仅为鼠标设备保留双击事件
-  previewImage?.addEventListener('dblclick', handleDoubleClick)
+    // 仅为鼠标设备保留双击事件
+    previewImage.addEventListener('dblclick', handleDoubleClick)
 
-  // 添加滚轮缩放支持
-  previewImage?.addEventListener('wheel', handleWheel, { passive: false })
+    // 添加滚轮缩放支持
+    previewImage.addEventListener('wheel', handleWheel, { passive: false })
+  }
 
-  // 键盘事件
-  document.addEventListener('keydown', handleKeyDown)
+  // 键盘事件（使用捕获阶段，避免被子元素阻止冒泡）
+  document.addEventListener('keydown', handleKeyDown, true)
 
   // 全屏变化事件
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
   document.addEventListener('msfullscreenchange', handleFullscreenChange)
-
-  // 点击背景关闭
-  previewContainer.addEventListener('click', (e) => {
-    if (e.target === previewContainer) {
-      closePreview()
-    }
-  })
 }
 
 const unbindEvents = (): void => {
@@ -489,9 +483,11 @@ const unbindEvents = (): void => {
     previewImage.removeEventListener('pointercancel', handlePointerCancel)
     previewImage.removeEventListener('dblclick', handleDoubleClick)
     previewImage.removeEventListener('wheel', handleWheel)
+    previewImage.style.touchAction = ''
   }
 
-  document.removeEventListener('keydown', handleKeyDown)
+  // 与绑定时的 capture 选项保持一致
+  document.removeEventListener('keydown', handleKeyDown, true)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
   document.removeEventListener('msfullscreenchange', handleFullscreenChange)
