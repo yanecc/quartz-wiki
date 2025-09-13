@@ -10,7 +10,6 @@
   align-items: center;
   z-index: 9999;
   user-select: none;
-  // 优化指针事件
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -29,21 +28,14 @@
   max-height: none;
   cursor: grab;
   transform-origin: center;
-  // 统一的指针事件处理
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  pointer-events: auto;
-  // 性能优化
-  will-change: transform;
-  // 防止拖拽时的图片选中
   -webkit-user-drag: none;
-  -khtml-user-drag: none;
-  -moz-user-drag: none;
-  // 移除高亮
   -webkit-tap-highlight-color: transparent;
-  // 防止长按菜单
   -webkit-touch-callout: none;
+  pointer-events: auto;
+  will-change: transform;
 
   &:active {
     cursor: grabbing;
@@ -60,10 +52,10 @@
   align-items: center;
   gap: 10px;
   z-index: 10000;
-  // 防止控制栏干扰图片的指针事件
   pointer-events: none;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 
-  // 子元素启用指针事件
   > * {
     pointer-events: auto;
   }
@@ -94,7 +86,7 @@
   font-weight: 500;
   display: none;
   white-space: nowrap;
-  pointer-events: none; // 防止干扰交互
+  pointer-events: none;
 
   &::after {
     content: '';
@@ -109,6 +101,7 @@
 
 .image-preview-zoom {
   appearance: none;
+  -webkit-appearance: none;
   width: 96%;
   height: 4px;
   border-radius: 2px;
@@ -116,27 +109,9 @@
   outline: none;
   margin: 0 8px;
   cursor: pointer;
-  // 优化触摸交互
   touch-action: manipulation;
 
-  &::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #fff;
-    border: 2px solid #000;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover {
-      transform: scale(1.1);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    }
-  }
-
+  &::-webkit-slider-thumb,
   &::-moz-range-thumb {
     width: 18px;
     height: 18px;
@@ -145,6 +120,7 @@
     background: #fff;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
 
     &:hover {
       transform: scale(1.1);
@@ -152,7 +128,11 @@
     }
   }
 
-  // 鼠标悬停时显示百分比
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   &:hover + .scale-percentage {
     display: block !important;
   }
@@ -180,7 +160,6 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  // 优化按钮交互
   touch-action: manipulation;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -202,8 +181,9 @@
   }
 }
 
-// 全屏状态下的样式调整
+// 全屏状态样式
 .image-preview-overlay:-webkit-full-screen,
+.image-preview-overlay:-moz-full-screen,
 .image-preview-overlay:-ms-fullscreen,
 .image-preview-overlay:fullscreen {
   .image-preview-controls {
@@ -213,10 +193,6 @@
   .scale-container {
     padding: 10px 20px;
     width: 300px;
-  }
-
-  .image-preview-zoom {
-    width: 96%;
   }
 
   .control-buttons {
@@ -236,83 +212,69 @@
   }
 }
 
-// 响应式设计 - 移动端优化
+// 移动端优化
 @media (max-width: 768px) {
   .image-preview-controls {
-    bottom: 20px;
+    bottom: max(20px, env(safe-area-inset-bottom));
     gap: 8px;
   }
 
   .scale-container {
     padding: 6px 12px;
-    width: 200px;
+    width: 240px;
   }
 
   .image-preview-zoom {
-    width: 96%;
-    height: 8px; // 增加触摸区域
+    height: 8px;
 
-    &::-webkit-slider-thumb {
-      width: 24px;
-      height: 24px;
-      // 确保符合触摸目标最小尺寸
-      min-width: 44px;
-      min-height: 44px;
-      position: relative;
-
-      // 扩大可点击区域
-      &::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 44px;
-        height: 44px;
-      }
-    }
-
+    &::-webkit-slider-thumb,
     &::-moz-range-thumb {
       width: 24px;
       height: 24px;
-      position: relative;
-
-      // 扩大可点击区域
-      &::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 44px;
-        height: 44px;
-      }
     }
   }
 
   .control-buttons {
     padding: 6px 12px;
-    gap: 15px;
-    width: 200px;
+    gap: 12px;
+    width: 240px;
   }
 
   .control-btn {
     width: 32px;
     height: 32px;
-    // 满足最小触摸目标尺寸
     min-width: 44px;
     min-height: 44px;
-    position: relative;
 
     .icon {
       width: 25px;
       height: 25px;
-      pointer-events: none;
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+  }
+
+  // 移动端全屏状态
+  .image-preview-overlay:-webkit-full-screen,
+  .image-preview-overlay:-moz-full-screen,
+  .image-preview-overlay:-ms-fullscreen,
+  .image-preview-overlay:fullscreen {
+    .image-preview-controls {
+      bottom: max(30px, calc(env(safe-area-inset-bottom) + 20px));
+    }
+
+    .scale-container,
+    .control-buttons {
+      width: 260px;
+    }
+
+    .control-buttons {
+      gap: 20px;
     }
   }
 }
 
-// 小屏幕设备优化
+// 小屏幕设备
 @media (max-width: 480px) {
   .image-preview-controls {
     bottom: 15px;
@@ -320,20 +282,21 @@
 
   .scale-container,
   .control-buttons {
-    width: min(180px, calc(100vw - 40px));
+    width: min(220px, calc(100vw - 40px));
+  }
+
+  .control-buttons {
+    gap: 10px;
   }
 }
 
-// 暗色主题适配
+// 主题适配
 :root[saved-theme="dark"] {
   .image-preview-overlay {
     background-color: rgba(0, 0, 0, 0.95);
   }
 
-  .scale-container {
-    background: rgba(20, 20, 20, 0.85);
-  }
-
+  .scale-container,
   .control-buttons {
     background: rgba(20, 20, 20, 0.85);
   }
@@ -349,13 +312,13 @@
   }
 }
 
-// 亮色主题适配
 :root[saved-theme="light"] {
   .image-preview-overlay {
     background-color: rgba(255, 255, 255, 0.95);
   }
 
-  .scale-container {
+  .scale-container,
+  .control-buttons {
     background: rgba(240, 240, 240, 0.9);
   }
 
@@ -366,10 +329,6 @@
     &::after {
       border-top-color: rgba(60, 60, 60, 0.9);
     }
-  }
-
-  .control-buttons {
-    background: rgba(240, 240, 240, 0.9);
   }
 
   .control-btn {
@@ -383,11 +342,7 @@
   }
 
   .image-preview-zoom {
-    &::-webkit-slider-thumb {
-      background: #fff;
-      border: 2px solid #333;
-    }
-
+    &::-webkit-slider-thumb,
     &::-moz-range-thumb {
       background: #fff;
       border: 2px solid #333;
@@ -395,7 +350,7 @@
   }
 }
 
-// 高对比度模式支持
+// 高对比度模式
 @media (prefers-contrast: high) {
   .image-preview-overlay {
     background-color: rgba(0, 0, 0, 0.98);
@@ -407,14 +362,5 @@
 
   .scale-percentage {
     font-weight: 600;
-  }
-}
-
-// 减少动画偏好
-@media (prefers-reduced-motion: reduce) {
-  .control-btn,
-  .image-preview-zoom::-webkit-slider-thumb,
-  .image-preview-zoom::-moz-range-thumb {
-    transition: none;
   }
 }
